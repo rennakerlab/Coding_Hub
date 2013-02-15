@@ -1,0 +1,46 @@
+function parport = NEL_Initialize_PPort
+
+%
+%NEL_Initialize_PPort.m - OU Neural Engineering Lab, 2010
+%
+%   NEL_Initialize_PPort uses functions from the MatLab signal acquisition
+%   toolbox to set up a digital input/output connection through the
+%   parallel port that can be used in lieu of a TDT RP2 device (the
+%   "Parallel2Auditory" converter must be plugged in between the computer
+%   and the behavioral control box).  Logic signal values can be set or
+%   read with the "NEL_PPort_Set" and "NEL_PPort_Get" functions,
+%   respectively.
+%
+%   Last updated May 13, 2010, by Drew Sloan.
+
+parport = digitalio('parallel','LPT1');             %Create a digital input/output (DIO) object for the parallel port.
+
+%We can use a for loop to add the outputs, since they're grouped together
+%and all use non-inverted logic.
+for i = 0:7                                      	%Step through each of the 8 digital outputs...
+    addline(parport,i,0,'out',['output' num2str(i+1) '-pin' num2str(i+2)]);     %...and add a labeled line for each output.
+end
+
+%The inputs, however, are somewhat scattered with respect to numbering, so
+%we'll add and label those lines individually.
+addline(parport,3,1,'in','input1-pin10');       %Pin 10 is input #1.
+addline(parport,4,1,'in','input2-pin11');       %Pin 11 is input #2.
+addline(parport,2,1,'in','input3-pin12');       %Pin 12 is input #3.
+addline(parport,1,1,'in','input4-pin13');       %Pin 13 is input #4.
+addline(parport,1,2,'in','input5-pin14');       %Pin 14 is input #5.
+addline(parport,0,1,'in','input6-pin15');       %Pin 15 is input #6.
+addline(parport,2,2,'in','input7-pin16');       %Pin 16 is input #7.
+addline(parport,3,2,'in','input8-pin17');       %Pin 17 is input #8.
+
+%Zero all the output lines at the start.
+
+
+addline(parport,0:7,0,'out');                       %Lines 1 through 8 (pins 2-9) code the bitmask for the multiplexers.
+addline(parport,0,2,'out');                         %Line 9 (pin 1) strobes the multiplexers.
+addline(parport,2,2,'out');                         %Line 10 (pin 16) controls the normally-on valve.
+addline(parport,3,2,'out');                         %Line 11 (pin 17) is a weak voltage supply for the multiplexers.
+addline(handles.parport,3,1,'in');                  %Line 12 (pin 10) is the input for external triggers.
+putvalue(handles.parport.Line(10),0);               %Make sure the normally-open valve is open.
+putvalue(handles.parport.Line(11),0);               %Turn on the multiplexer voltage supply (inverted logic on pin 17).
+putvalue(handles.parport.Line(1:8),0);              %Set the bitmask lines to zero.
+putvalue(handles.parport.Line(9),1);                %Set the strobe line to zero.

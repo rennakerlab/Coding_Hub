@@ -1,0 +1,39 @@
+function Video_Test
+
+disp(imaqhwinfo);                                                           %Display the video adapters installed on this computer.
+
+%Assuming 'winvideo' is one of the adapters installed...
+vid = videoinput('winvideo',1,'RGB24_320x240');                             %Create a video input object.
+figure(1);                                                                	%Create another figure to show processed frames from the video feed.
+tic;                                                                        %Start a timer.
+while toc < 30                                                              %Loop for 30 seconds.
+    frame = getsnapshot(vid);                                               %Grab a single frame from the video feed.
+    im = sum(frame,3);                                                      %Collapse the RGB frame into a grayscale/monoscale 2-D matrix by summing the RGB values.
+    
+    subplot(2,2,1);                                                         %In the top left plot...
+    imagesc(im);                                                            %Show the monochrome image.
+    title('Monochr');                                        %Show a title for the image.
+    
+    subplot(2,2,2);                                                         %In the top right plot...
+    imagesc(1/im);                                                          %Show the reciprocal monochrome image.
+    title('Reciprocal');                                                    %Show a title for the image.
+    
+    im = boxsmooth(im,[5,5]);                                               %Smooth the image with a 5-by-5 boxsmooth.
+    subplot(2,2,3);                                                         %In the bottom left plot...
+    imagesc(im);                                                            %Show the smoothed imaged.
+    title('Smoothed 5-by-5 pixels');                                        %Show a title for the image.
+    
+    %The following 3 lines will apply maximum contrast to the frame.  Comment
+    %them out if you want to see the grayscale/monoscale image with natural contrast.
+    contrast_threshold = 765/2;                                             %Set a threshold for applying maximum contrast.
+    im(im < contrast_threshold) = 0;                                        %Set all pixels below the threshold to zero.
+    im(im > contrast_threshold) = 1;                                        %Set all pixels below the threshold to one.
+    
+    subplot(2,2,4);
+    imagesc(im);                                                            %Show the 2-D matrix as a scaled image.
+    colormap(gray);                                                         %Set the colormap to "gray" or whichever you like (i.e. "jet", "summer", "hsv", etc.).
+    drawnow;                                                                %Make the figure display the image before executing the next loop.
+end
+
+closepreview(vid);                                                          %Close the video preview figure.
+delete(vid);                                                                %Delete the video input object.

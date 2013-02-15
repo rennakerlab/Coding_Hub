@@ -1,0 +1,80 @@
+function NEL_Process_Recordings(input, overwrite)
+
+%NEL_Process_Recording.m - OU Neural Engineering Lab, 2007
+%
+%   NEL_Process_Recordings combines calls for LFP filtering, thresholding,
+%   spike sorting, and zipping/unzipping of *.NEL format neural recordings 
+%   under one program, making it easy to set up automatic processing of
+%   large batches of files.
+%
+%   NEL_Process_Recordings() opens a dialog box for the user to select a
+%   folder containing *.NEL or *.NEL.zip files for processing, skipping the
+%   LFP-filtering, thresholding, and/or spike-sorting steps when 
+%   corresponding *.LFP, *.SPK, and/or *.dg_01 files already exist, 
+%   respectively.
+%
+%   NEL_Process_Recordings(directory) automatically processes all *.NEL or 
+%   *.NEL.zip files in the directory specified, skipping the LFP-filtering, 
+%   thresholding, and/or spike-sorting steps when corresponding *.LFP, 
+%   *.SPK, and/or *.dg_01 files  already exist, respectively.
+%
+%   NEL_Process_Recordings(directory, 'OverWrite') automatically processes 
+%   all *.NEL or *.NEL.zip files in the directory specified, overwriting
+%   any existing *.LFP, *.SPK, or *.dg_01 files corresponding to each *.NEL or
+%   *.NEL.zip file.
+%
+%   Last updated July 13, 2007, by Drew Sloan.
+
+if nargin > 0
+    if ~isdir(input)            %Check to make sure the input is a directory.
+        error('Input is not a directory name.');
+    else
+        datapath = input;       %Set the datapath to the given directory.
+    end
+    if nargin == 2              %If the OverWrite option is also specified, initialize that here.
+        if strcmpi(overwrite,'OverWrite')
+            overwrite = 1;
+        else
+            error('Unrecognized argument for OverWrite option.');   %If the argument is 'OverWrite', signal error.
+        end
+    else
+        overwrite = 0;          %Files are NOT overwritten by default.
+    end
+else
+    datapath = uigetdir('E:\','Select a directory with *.NEL Files for Processing');    %Select a directory for processing.
+    if isempty(datapath)    %If not directory is selected, error out.
+        error('No directory selected.');
+    end
+    overwrite = 0;          %The default is not to overwrite *.LFP or *.SPK files.
+end
+
+cd(datapath);               %Change to the specified directory.
+files = dir('*.NEL*');      %Find all *.NEL or *.NEL.zip files.
+if isempty(files)           %If there are no *.NEL or *.NEL.zip files, then indicate so.
+    disp('There are no *.NEL or *.NEL.zip files in the specified directory.');
+end
+
+for i = 1:length(files);        %Stepping through file by file.
+    disp(['Processing: ' files(i).name]);
+    if strcmpi(files(i).name(length(files(i).name)-3:end),'.zip')   %If this file is zipped, look into unzipping it.
+        if ~exist(files(i).name(1:length(files(i).name)-4))         %If no unzipped version already exists, then unzip.
+            disp('-Unzipping...');
+            unzip(files(i).name);
+        end
+        files(i).name = files(i).name(1:length(files(i).name)-4);   %Remove the *.zip tail from the file name.
+    end
+    if ~exist([files(i).name(1:length(files(i).name)-4) '.LFP']) || overwrite    %If the *.SPK file doesn't exist or if overwriting, then LFP-filter.
+        NELtoLFP(files(i).name,'Display','Off');
+    end
+    if ~exist([files(i).name(1:length(files(i).name)-4) '.SPK']) || overwrite    %If the *.SPK file doesn't exist or if overwriting, then threshold.
+        NELtoSPK(files(i).name,'Interpolate','Off','SavePlots','On');
+    end
+    if ~exist([files(i).name(1:length(files(i).name)-4) '.dg_01']) || overwrite    %If the spike-sorting output files doesn't exist or if overwriting, then auto-spike-sort.
+        NEL_Auto_SPC([files(i).name(1:length(files(i).name)-4) '.SPK'],'Display','On');     %Auto-Spike-Sort the given *.SPK file.
+    end
+	SPKtoF32([files(i).name(1:length(files(i).name)-4) '.SPK']);        %Export f32s for the given *.SPK file.
+    if ~exist([files(i).name '.zip'])       %If no zipped version of the *.NEL file exists, zip it.
+        zip(files(i).name,files(i).name);
+    end
+    delete(files(i).name);                  %Delete the unzipped *.NEL file to save space.
+end

@@ -1,0 +1,157 @@
+function varargout = readEDF(varargin)
+
+% readedf() - read eeg data in EDF format.
+%
+% Usage: 
+%    >> [data,header] = readedf(filename);
+%
+% Input:
+%    filename - file name of the eeg data
+% 
+% Output:
+%    data   - eeg data in (channel, timepoint)
+%    header - structured information about the read eeg data
+%      header.length - length of header to jump to the first entry of eeg data
+%      header.records - how many frames in the eeg data file
+%      header.duration - duration (measured in second) of one frame
+%      header.channels - channel number in eeg data file
+%      header.channelname - channel name
+%      header.transducer - type of eeg electrods used to acquire
+%      header.physdime - details
+%      header.physmin - details
+%      header.physmax - details
+%      header.digimin - details
+%      header.digimax - details
+%      header.prefilt - pre-filterization spec
+%      header.samplerate - sampling rate
+%
+% Author: Jeng-Ren Duann, CNL/Salk Inst., 2001-12-21
+
+%123456789012345678901234567890123456789012345678901234567890123456789012
+
+% Copyright (C) Jeng-Ren Duann, CNL/Salk Inst., 2001-12-21
+%
+% This program is free software; you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation; either version 2 of the License, or
+% (at your option) any later version.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program; if not, write to the Free Software
+% Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+% $Log: readedf.m,v $
+% Revision 1.2  2002/08/12 19:00:57  arno
+% errordlg->error
+%
+% Revision 1.1  2002/04/05 17:36:45  jorn
+% Initial revision
+%
+
+% 03-21-02 editing header, add help -ad 
+
+file = varargin{1};
+if nargin > 1
+    channel = varargin{2};
+end
+
+data = [];                                                                  %Create a data structure to receive the incoming data.
+fid = fopen(file,'r','ieee-le');                                            %Open the EDF file for reading with little-endian byte ordering.
+if fid == -1                                                                %If file doesn't exist, show an error.
+    error('ERROR in readEDF.m: Input file doesn''t exist!');
+end
+fseek(fid,0,'bof');
+version = fread(fid,8,'uchar');                                             %Read in the EDF file version.
+data.patient_info = fread(fid,80,'*char')';                                 %Read in the patient information.
+data.patient_info(strfind(data.patient_info,'  ')+1) = [];                  %Get rid of extra spaces in the patient information.
+if strcmpi(data.patient_info(end),' ')                                      %If the last character of the patient information is a space...
+    data.patient_info(end) = [];                                            %...delete the space.
+end
+data.system_info = fread(fid,80,'*char')';                                  %Read in the system information.
+data.system_info(strfind(data.system_info,'  ')+1) = [];                    %Get rid of extra spaces in the system information.
+if strcmpi(data.system_info(end),' ')                                       %If the last character of the system information is a space...
+    data.system_info(end) = [];                                             %...delete the space.
+end
+data.date = fread(fid,8,'*char')';                                          %Read in the date information.
+data.time = fread(fid,8,'*char')';                                          %Read in the time information.
+headersize = fread(fid,8,'*char')';                                         %The number of bytes in the the header record.
+fseek(fid,44,'cof');                                                        %Skip past the reserved blank section of the file.
+numrecords = fread(fid,8,'*char')';                                         %Read in the number of data records.
+recorddur = fread(fid,8,'*char')';                                          %Read in the duration of the data record, in seconds.
+numchannels = str2double(fread(fid,4,'*char')');                            %Read in the number of channels in the data record.
+for i = 1:numchannels                                                       %Now step through each channel.
+    data.channel(i).label = fread(fid,16,'*char')';                         %Read in this channel's label.
+    data.channel(i).label(strfind(data.channel(i).label,'  ')+1) = [];      %Get rid of extra spaces in this channel's label.
+    if strcmpi(data.channel(i).label(end),' ')                              %If the last character of this channel's label is a space...
+        data.channel(i).label(end) = [];                                   	%...delete the space.
+    end
+end
+for i = 1:numchannels                                                       %Step through each channel again
+    data.channel(i).transducer = fread(fid,80,'*char')';                    %Read in this channel's transducer.
+    data.channel(i).transducer(strfind(data.channel(i).transducer,'  ')+1) = [];      %Get rid of extra spaces in this channel's transducer.
+    if strcmpi(data.channel(i).transducer(end),' ')                         %If the last character of this channel's transducer is a space...
+        data.channel(i).transducer(end) = [];                               %...delete the space.
+    end
+end
+for i = 1:numchannels                                                       %Step through each channel again
+    data.channel(i).dimension = fread(fid,8,'*char')';                      %Read in this channel's dimension.
+    data.channel(i).dimension(strfind(data.channel(i).dimension,'  ')+1) = [];      %Get rid of extra spaces in this channel's dimension.
+    if strcmpi(data.channel(i).dimension(end),' ')                          %If the last character of this channel's dimension is a space...
+        data.channel(i).dimension(end) = [];                               	%...delete the space.
+    end
+end
+for i = 1:numchannels                                                       %Step through each channel again
+    data.channel(i).phys_min = fread(fid,8,'*char')';                       %Read in this channel's phys_min.
+    data.channel(i).phys_min(strfind(data.channel(i).phys_min,'  ')+1) = [];      %Get rid of extra spaces in this channel's phys_min.
+    if strcmpi(data.channel(i).phys_min(end),' ')                           %If the last character of this channel's phys_min is a space...
+        data.channel(i).phys_min(end) = [];                                 %...delete the space.
+    end
+end
+for i = 1:numchannels                                                       %Step through each channel again
+    data.channel(i).phys_max = fread(fid,8,'*char')';                       %Read in this channel's phys_max.
+    data.channel(i).phys_max(strfind(data.channel(i).phys_max,'  ')+1) = [];      %Get rid of extra spaces in this channel's phys_max.
+    if strcmpi(data.channel(i).phys_max(end),' ')                           %If the last character of this channel's phys_max is a space...
+        data.channel(i).phys_max(end) = [];                                 %...delete the space.
+    end
+end
+for i = 1:numchannels                                                       %Step through each channel again
+    data.channel(i).dig_min = fread(fid,8,'*char')';                        %Read in this channel's dig_min.
+    data.channel(i).dig_min(strfind(data.channel(i).dig_min,'  ')+1) = [];      %Get rid of extra spaces in this channel's dig_min.
+    if strcmpi(data.channel(i).dig_min(end),' ')                            %If the last character of this channel's dig_min is a space...
+        data.channel(i).dig_min(end) = [];                                  %...delete the space.
+    end
+end
+for i = 1:numchannels                                                       %Step through each channel again
+    data.channel(i).dig_max = fread(fid,8,'*char')';                        %Read in this channel's dig_max.
+    data.channel(i).dig_max(strfind(data.channel(i).dig_max,'  ')+1) = [];      %Get rid of extra spaces in this channel's dig_max.
+    if strcmpi(data.channel(i).dig_max(end),' ')                            %If the last character of this channel's dig_max is a space...
+        data.channel(i).dig_max(end) = [];                                  %...delete the space.
+    end
+end
+for i = 1:numchannels                                                       %Step through each channel again
+    data.channel(i).prefiltering = fread(fid,80,'*char')';                  %Read in this channel's prefiltering.
+    data.channel(i).prefiltering(strfind(data.channel(i).prefiltering,'  ')+1) = [];      %Get rid of extra spaces in this channel's prefiltering.
+    if strcmpi(data.channel(i).prefiltering(end),' ')                       %If the last character of this channel's prefiltering is a space...
+        data.channel(i).prefiltering(end) = [];                             %...delete the space.
+    end
+end
+for i = 1:numchannels                                                       %Step through each channel again
+    data.channel(i).numsamples = str2double(fread(fid,8,'*char')');         %Read in this channel's numsamples.
+    data.channel(i).signal = [];                                            %Create an empty field to hold the channel's signal.
+end
+fseek(fid,32*numchannels,'cof');                                            %Skip the reserved section of the file header.
+while ~feof(fid)                                                            %Loop until the end of the file.
+    for i = 1:numchannels                                                   %Step through each channel.
+        data.channel(i).signal = [data.channel(i).signal; ...
+            fread(fid,data.channel(i).numsamples,'int16')];                 %Add the next snippet of signal to the existing signal.
+    end
+end
+fseek(fid,str2double(headersize),'bof');                                    %Skip to the end of the header.
+
+fclose(fid);                                                                %Close the file for now having just read in the header.
+varargout{1} = data;                                                        %Set the data structure as the first variable argument out.

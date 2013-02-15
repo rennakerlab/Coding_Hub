@@ -1,0 +1,32 @@
+function scrollbox = scrolling_textbox
+
+pos = get(0,'ScreenSize');                                                  %Grab the screensize.
+pos = [0.2*pos(3),0.1*pos(4),0.6*pos(3),0.8*pos(4)];                        %Scale a figure position relative to the screensize.
+fig = figure(...                                                           	%Create a parent figure for an edit box.
+    'position',pos,...                                                      %Set the figure position.
+    'menubar','none',...                                                    %Turn off the menubar on the figure.
+    'color','w',...                                                         %Set the background color to white
+    'numbertitle','off',...                                                 %Turn off the number title.
+    'Tag','ScrollBox');                                                     %Set the figure tag to "ScrollBox".
+editbox = uicontrol(...                                                     %Create an edit box within the figure.
+	'string','',...                                                         %Start with the text blank.
+    'units','normalized',...                                                %Normalize the position units within the figure.
+    'position',[.01 .01 .98 .98],...                                        %Stretch the edit box to take up most of the figure.
+    'fontsize',12,...                                                       %Set the default fontsise to 12.
+    'Enable','inactive');                                                   %Set the enable property to inactive.
+guidata(fig,editbox);                                                       %Pin the editbox handle to the GUI.
+scrollbox.print = @(txt)scrollbox_print(txt);                               %Set the function for printing a line to the scrollbox.
+scrollbox.clear = 
+
+
+S = txt_update;  % Create the textbox.
+for ii = 1:50
+    A = rand(ceil(rand*2),ceil(rand*3));  % Update with numeric data.
+    set(S.tx,'string',cat(1,get(S.tx,'string'),{num2str(A)}))
+    pause(.1) % Simulate some long calculation.
+end
+for jj = 1:50
+    B = char(rand(1,9)*10+110);  % Update with character data.
+    set(S.tx,'string',cat(1,get(S.tx,'string'),{B}))
+    pause(.1) % Simulate some long calculation.
+end

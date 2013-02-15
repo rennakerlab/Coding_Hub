@@ -1,0 +1,57 @@
+function IsoTC_Bias_Analysis
+
+bin = [10,35];                                                              %Set the time bin over which to sum spikes, relative to stimulus onset.
+alpha = 0.05;                                                               %Set the alpha for signicance tests.
+mult_alpha = 1 - (1 - alpha)^(1/20);                                        %Calculate the alpha for multiple comparisons.
+
+mainpath = 'Y:\Neural Recordings\';                                         %Set the main path containing the rat subfolders.
+folders = {};                                                               %Create a cell array to hold folder names.
+ratfolders = dir(mainpath);                                                 %Grab all the contents of the mainpath.
+for i = 1:length(ratfolders)                                                %Step through each rat folder
+    subfolder = [mainpath ratfolders(i).name '\' ratfolders(i).name '_IsoTC\'];     %Create the IsoTC subfolder name for this rat.
+    if exist(subfolder,'dir')                                               %If the IsoTC subfolder exists...
+        temp = dir(subfolder);                                              %Grab the contents of the IsoTC subfolders.
+        for j = 1:length(temp)                                              %Step through the folder contents.
+            if ~any(temp(j).name == '.') && temp(j).isdir == 1              %If an item is a folder, but not a system folder...
+                folders{end+1} = [subfolder temp(j).name '\'];              %Add the subfolder to the list of subfolders.
+            end
+        end
+    end
+end
+files = {};                                                                 %Create an empty cell array to hold *.f32 filenames.
+for f = 1:length(folders)                                                   %Step through every subfolder.
+    temp = dir([folders{f} '*_IsoTC_*_NP_*.f32']);                          %Grab all the NP IsoTC *.f32 filenames in the subfolder.
+    for i = 1:length(temp)                                                  %Step through every NP IsoTC *.f32 file.
+        files{end+1} = [folders{f} temp(i).name];                           %Save the filename with it's full path.
+    end
+end
+checker = uint8(zeros(length(files),1));                                    %Create a matrix to mark files as driven or not.
+
+tc = nan(100,20);                                                           %Create a matrix to hold the spikerates for each frequency on each sweep.
+for f = 1:length(files)                                                     %Step through each of the NP IsoTC *.f32 files.
+    disp(['Analyzing (' num2str(f) '/' num2str(length(files)) '): '...
+            files{f}]);                                                     %Show the user which file is being analyzed.
+    data = f32FileRead(files{f});                                           %Use F32FileRead to read the *.f32 file.
+    spont = 0;                                                              %Create a variable to hold the average spontaneous rate.
+    spont_n = 0;                                                            %Create a counter for the number of samples in the spontaneous rate average.
+    numsweeps = zeros(1,length(data));                                      %Create a variable to hold the number of repetitions for each stimulus.
+    for j = 1:length(data)                                                  %Step through each stimulus...
+        numsweeps(j) = length(data(j).sweep);                               %We'll need to know the number of sweeps for plotting.
+        for k = 1:numsweeps(j)                                              %Step through each sweep...
+            spont_n = spont_n + 1;                                          %Add a count to the total number of sweeps regardless of if there spikes.
+            spont = spont + sum(data(j).sweep(k).spikes <= ...
+                data(j).params(end))/data(j).params(end);                   %Add the spikerate within the spontaneous measurement window to the average.
+            data(j).sweep(k).rate = sum(data(j).sweep(k).spikes >= ...
+                bin(1) & data(j).sweep(k).spikes <= bin(2))/range(bin);     %Save the spikerate within the set analysis window for each sweep.
+            tc(k,j) = data(j).sweep(k).rate;                                %Also save the spikerate to the tc matrix.
+        end
+    end
+    spont = spont/spont_n;                                                  %Divide the spontaneous sum by the number of samples to find the average.
+    p = anova1(tc,[],'off');                                                %Perform an ANOVA on the data to look for significant frequency selectivity.
+    if p < alpha                                                            %If the ANOVA is significant...
+        tc = tc - spont;                                                    %Subtract the spontaneous rate from the tuning curve.
+        checker(f) = 1;                                                     %Mark this file as frequency-selective.
+        disp('Driven');
+    end
+end
+files(checker == 0) = [];                                                   %Kick out all the undriven files.

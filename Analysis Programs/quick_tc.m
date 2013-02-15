@@ -1,0 +1,296 @@
+function [varargout] = quick_tc(varargin)
+
+%
+%QUICK_TC.m - Rennaker Neural Engineering Lab, 2010
+%
+%   QUICK_TC has the user select an *.f32 file or an *.LFP file and then 
+%   creates a TC plot from those spike times/local field potentials, 
+%   organized by frequency and intensity, and a pooled PSTH/AER.
+%
+%   QUICK_TC(file,...) creates a TC plot and pooled PSTH/AER for each
+%   file specified.  The variable "file" can either be a single string or a
+%   cell array of strings containing file names.
+%
+%   QUICK_TC(binsize,...) creates the pooled PSTH/AER smoothed with a 
+%   longer time bin specified by "binsize", an integer number of 
+%   milliseconds.  The default binsize is 5 milliseconds.
+%
+%   Last updated May 19, 2011, by Drew Sloan.
+
+
+binsize = 5;                        %Set the smoothing bin size to 5 ms.
+alpha = 0.05;                       %Confidence level for error bars on IsoTC plots.
+if length(varargin) > 2             %If the user entered too many arguments, show an error.
+    error('Too many input arguments for QUICK_TC!  Inputs should be a filename string, or cell array of filename strings, and/or an integer bin size.');
+end
+for i = 1:length(varargin)
+    temp = varargin{i};                 %Pull the variable out of the input argument.
+    if ischar(temp)                     %If the argument is a string...
+        files(1).name = temp;           %Save the filename as a string.
+    elseif iscell(temp)                	%If the argument is a cell...
+        for j = 1:length(temp)          %Step through the filenames....
+            files(j).name = cell2mat(temp(j));  %And save the filenames in a structure.
+        end
+    elseif isnumeric(temp)                  %If the argument is a number...
+        binsize = temp;                     %The user has specified a binsize.
+        if length(binsize) > 1 || binsize < 1   %If the bin size isn't a single integer or is less than 1, show an error.
+            error('Bin size input must be a single integer greater than or equal to 1!');
+        end
+    else            %If the input isn't a cell, string, or number, show an error.
+        error(['Input argument #' num2str(i) ' is not recognized in QUICK_TC!  Inputs should be a filename string, or cell array of filename strings, and/or an integer bin size.']);
+    end
+end
+if ~exist('files','var')      %If the user hasn't specified an input file...
+    [temp path] = uigetfile({'*.f32';'*.LFP';'*.dam'},'multiselect','on');   %Have the user pick an input file or files.
+    cd(path);                         	%Change the current directory to the folder that file is in.
+    if iscell(temp)                     %If the user's picked multiple files...
+        for i = 1:length(temp)          %Step through each selected file.
+            files(i).name = [path temp{i}];     %Save the file names in a structure.
+        end
+    elseif ischar(temp)                  %If only one file is selected...
+        files(1).name = [path temp];    %Add the path to the filename.
+    elseif isempty(temp)                %If no file is selected...
+        error('No file selected!');     %Show an error message.
+    end
+end
+
+%Now step through each filename and create a tuning curve and and pooled PSTH/AER for each.
+for i = 1:length(files)
+    if ~exist(files(i).name,'file')             %Check to make sure the input file exists.
+        error([files(i).name ' doesn''t exist!']);
+    end
+    if ~strcmpi(files(i).name((end-3):end),'.f32') && ~strcmpi(files(i).name((end-3):end),'.LFP') && ...
+            ~strcmpi(files(i).name((end-3):end),'.dam')     %Check to make sure the input file is an *.f32, *.LFP, or *.dam file.
+        error([files(i).name ' is not an *.f32, *.LFP, or *.dam file!']);
+    end
+    if strcmpi(files(i).name((end-3):end),'.f32')   %If the input file is an *.f32 file...
+        isf32 = 1;                                  %...indicate that for following code.
+    else                                            %Otherwise, if the input file is an *.LFP file or a *.dam file...
+        isf32 = 0;                                  %...indicate that for following code.
+    end
+    if isf32                                                %If the input file is an *.f32 file...
+        data = spikedataf(files(i).name);                   %Use spikedataf to read the *.f32 file.
+        spont_delay = data(1).stim(length(data(1).stim));       %The spontaneous delay is always the last parameter.
+        sweeplength = data(1).sweeplength;                  %All sweeps will have the same sweeplength.
+    	temp = 0;                                          	%Create a temporary matrix to count the total number of sweeps.
+        for j = 1:length(data)                            	%Step through each stimulus to find the total number of sweeps...
+            temp = temp + length(data(j).sweep);           	%Add to the total number of sweeps.
+        end
+        spont = zeros(temp,1);                              %Pre-allocate an array to hold spontaneous rate.
+      	psth = zeros(1,sweeplength);                        %We'll keep track of the PSTH as a sum of spikecounts.
+        psth_n = 0;                                     	%To find average spikerates, we'll have to keep track of the total number of sweeps.
+        for j = 1:length(data)                              %Step through each stimulus...
+            numsweeps = length(data(j).sweep);              %We'll need to know the number of sweeps for plotting.
+            data(j).psth = zeros(1,sweeplength);            %Create a new field in the data structure to hold the psth.
+            for k = 1:numsweeps                             %Step through each sweep...
+                psth_n = psth_n + 1;                        %Add a count to the total number of sweeps regardless of if there spikes.
+                if ~isempty(data(j).sweep(k).spikes);                       %If there are any spikes in this sweep...
+                    temp = histc(data(j).sweep(k).spikes,0:sweeplength);    %Calculate a millisecond-scale histogram for this sweep.
+                    psth = psth + temp(1:sweeplength);                      %Add the histogram to the pooled PSTH.
+                    data(j).psth = data(j).psth + temp(1:sweeplength);    	%Add the histogram to the PSTH for this specific stimulus..
+                    spont(psth_n) = mean(temp(1:spont_delay));              %Save the average spontaneous rate for this sweep.
+                end
+            end
+            data(j).psth = 1000*data(j).psth/numsweeps;  	%Change the PSTH scale to average spikes/s.
+        end
+        spont = 1000*spont;                                 %Change the spontaneous rates to spikes/s.
+        psth = 1000*psth/psth_n;          	%Find the average spikerate by dividing by the total number of sweeps.
+        psth = boxsmooth(psth,binsize);     %Box smooth the PSTH.
+    else                                                    %Otherwise...
+        if strcmpi(files(i).name((end-3):end),'.LFP')    	%If the input file is an *.LFP file...
+            data = LFPFileRead(files(i).name);            	%Use LFPFileRead to read the *.LFP file.
+            spont_delay = data.spont_delay;                	%Grab the spontaneous delay.
+            sweeplength = 1000*data.stim(1).sweeplength;   	%All sweeps will have the same sweeplength.
+        else                                                %Otherwise, if the input file is a *.dam file...
+            data = damFileRead(files(i).name);            	%Use damFileRead to read the *.LFP file.
+            spont_delay = 0;                                %We'll assume the spontaneous delay is zero.
+            sweeplength = size(data.stim(1).lfp,2);       	%Set the sweeplength assuming the sampling rate is 1000 Hz.
+        end
+        temp = 0;                                          	%Create a temporary matrix to count the total number of sweeps.
+        for j = 1:length(data.stim)                     	%Step through each stimulus to find the total number of sweeps...
+            temp = temp + size(data.stim(j).lfp,1);        	%Add to the total number of sweeps.
+        end
+      	aer = zeros(1,sweeplength);                         %We'll keep track of the AER as a sum of local field potentials.
+        aer_n = 0;                                          %To find the AER, we'll have to keep track of the total number of sweeps.
+        for j = 1:length(data.stim)                       	%Step through each stimulus...
+            data.stim(j).aer = 1000000*mean(data.stim(j).lfp,1);	%Create a new field in the data structure to hold the stimulus-specific aer, in microvolts.
+            aer = aer + sum(data.stim(j).lfp,1);            %Change the AER scale to average spikes/s.
+            aer_n = aer_n + size(data.stim(j).lfp,1);       %Add to the total sweep count.
+        end
+        aer = 1000000*aer/aer_n;                            %Calculate the overall AER, in microvolts.
+        aer = boxsmooth(aer,binsize);                       %Box smooth the AER.
+        spont = 0;                                          %Assume the spontaneous potential is zero.
+    end
+    fig = figure;                                           %Create a new figure for each file.
+    temp = get(fig,'position');                             %Find the current position of the figure.
+    set(fig,'position',[temp(1),temp(2)-0.5*temp(4),temp(3),1.5*temp(4)]);	%Make the figure 50% taller than the default.
+    set(fig,'color','w');                                   %Set the background color on the figure to white.
+    a = find(files(i).name == '\',1,'last');                %Find the last forward slash in the filename.
+    b = find(files(i).name == '.',1,'last');                %Find the last period in the filename.
+    temp = {'PSTH','AER'};                                  %Make two labels to for PSTHs and AERs.
+    temp = temp{2-isf32};                                   %Pick the correct label for this file.
+    if isempty(a)                                   %If there's no directory name in this filename...
+        set(fig,'name',files(i).name(1:b-1));       %Set the filename as the figure title.
+        disp(['Calculating tuning curve and pooled ' temp ' for ' files(i).name(1:b-1) '.']);
+    else                                            %Otherwise...
+        set(fig,'name',files(i).name(a+1:b-1));    	%Set the filename minus the directory as the figure title.
+        disp(['Calculating tuning curve and pooled ' temp ' for ' files(i).name(a+1:b-1) '.']);
+    end
+    subplot(3,1,3);                                 %Plot the pooled PSTH as the bottom 1/3rd of the figure.
+    if isf32                                        %If the file is an *.f32 file...
+        area(psth,'facecolor','k');                 %Plot the pooled PSTH as an area plot.
+        ylabel('spikerate (spks/s)');               %Label the y-axis.
+    else                                            %Otherwsie, if the file is an *.LFP file...
+        plot(aer,'color','k','linewidth',2);        %Plot the AER as a line.
+        line([0,sweeplength],[0 0],'color','k','linestyle','--');   %Plot a line to show zero voltage.
+        ylabel('evoked response (\muV)');        	%Label the y-axis.
+    end
+    box off;                         	%Turn off the plot box.
+    axis tight;                         %Tighten the plot around the PSTH.
+    xlim([0,sweeplength]);              %Set the x-axis limits to the sweeplength.
+    xlabel('sweep time (ms)');          %Label the x-axis.
+    if isf32                                %If this is f32 data...
+        params = horzcat(data(:).stim)';   	%Grab the stimulus parameters from the *.f32 formatted data.
+    else                                    %Otherwise, if this is LFP data...
+        ylim(get(gca,'ylim')+[-0.1,0.1]*range(get(gca,'ylim')));	%Widen the y-limits to better show the AER.
+        params = vertcat(data.param(:).value)';     %Grab the stimulus parameters from the *.LFP formatted data.
+    end
+    param_indices = 1:size(params,2);       %Keep track of the parameter indices.
+    temp = range(params);                   %Find the range of the parameters.
+    params(:,temp == 0) = [];               %Kick out all parameters that don't vary.
+    param_indices(:,temp == 0) = [];        %Delete the unvarying parameter indices as well.
+    temp = range(params);                   %Find the range of the parameters again.
+    freqs = params(:,temp == max(temp));	%The frequencies are most likely the parameters with the most range.
+    freq_index = param_indices(temp == max(temp));	%Grab the parameter index for the frequency.
+    params(:,temp == max(temp)) = [];           %Kick the frequencies out of the overall parameter list.
+    param_indices(:,temp == max(temp)) = [];   	%Delete the frequency parameter index as well.
+    ints = [];                              %Start off assuming that none of the parameter columns corresponds to intensity.
+    if size(params,2) > 1                   %If there's more than one column with varying parameters, ask the user which is the intensity.
+        temp = {};                          %Create a temporary cell array to show parameter lists to the user.
+        for j = 1:size(params,2)            %Step through the remaining parameters.
+            temp{j} = num2str(unique(params(:,j))','% .0d');    %Make a character string out of the parameter value list.
+        end
+        temp = listdlg('liststring',temp,'promptstring','Which of these parameters is intensity?',...
+            'okstring','Select','cancelstring','None of these','Name','Intensity?','selectionmode','single',...
+            'listsize',[400,300],'uh',30);      %Use a listbox to have the user select which parameter is intensity.
+        if ~isempty(temp)                   %If none of the parameters is selected...
+            ints = params(:,temp);              %Use the parameter column the user selected.
+            int_index = param_indices(temp);    %Save the parameter index for that column.
+        end
+    elseif size(params,2) == 1              %If there's only one more column with a varying parameter...
+        ints = params;                      %...that column must be intensity...
+        int_index = param_indices;          %...and save the one remaining parameter index.
+    end
+    if isempty(ints)                        %If there was no intensity column, then treat it as an IsoTC.
+        if isf32                            %If this is f32 data...
+            ints = [data(:).stim]';        	%Grab all parameters to start.
+        else                                %Otherwise, if this is LFP data..,
+            ints = vertcat(data.param(:).value)';	%Grab all parameters to start.
+        end
+        temp = find(range(ints) == 0,1,'first');    %Find the index for the first non-varying column.
+        ints = ints(:,temp);                %Use the first non-varying column as the intensity, even if it's not intensity, it doesn't matter.
+        int_index = temp;                   %Save the index for that column.
+    end
+    freqs = unique(freqs);              %Pare down the frequency list to only unique frequencies.
+    ints = unique(ints);                %Pare down the intensity list to only unique intensities.
+    if length(ints) > 1                 %If this is a multi-intensity TC...
+        tc = zeros(length(freqs),length(ints),1);       %Create an empty array to hold excitatory tuning curves.
+        if isf32                                        %If this is f32 data...
+            for j = 1:length(data)                      %Step through each stimulus...
+                tc(data(j).stim(freq_index) == freqs,...
+                    data(j).stim(int_index) == ints) = ...
+                    mean(data(j).psth(spont_delay + (11:35)));              %Find the mean spikerate in each excitatory segment.
+            end
+            temp = psth_n;                              %Temporarily grab the total number of sweeps.
+        else                                            %Otherwise, if this is *.dam data...
+            for j = 1:length(data.stim)                 %Step through each stimulus...
+                tc(data.param(freq_index).value(j) == freqs, data.param(int_index).value(j) == ints) = ...
+                    -min(data.stim(j).aer(double(spont_delay) + (11:35)));	%Find the range of the mean evoked response, kicking out the last sample.
+            end
+            temp = aer_n;                               %Temporarily grab the total number of sweeps.
+        end
+        if temp/(length(ints)*length(freqs)) < 25	%If there's less than 25 reps...
+            smooth_factor = [1,5];              %...smooth all contour plots with a 5 bin smooth.
+        else                                    %Otherwise...
+            smooth_factor = [1,1];             	%...don't smooth.
+        end
+        subplot(3,1,1:2);       %Plot the tuning curve as the top 2/3rds of the figure.        
+        temp = boxsmooth(tc(:,:,1)',smooth_factor);    %Boxsmooth spikerates in the first excitatory segment.
+        pad = mean(mean(temp));
+        temp = [[temp, repmat(pad,size(temp,1),1)]; repmat(pad,size(temp,2)+1)];	%Pad the edges with zeros so it shows the whole curve.
+        surf(temp,'edgecolor','none');          %Plot the first excitatory segment as a surface plot.
+        if isf32                    %If this is f32 data...
+            colormap(jet(500));   	%Color the surface with a non-inverted jet.
+        else                        %Otherwise, if this is LFP data.
+            colormap(flipud(jet(500)));	%Color the surface with an inverted jet.
+        end
+        view(0,90);                             %Rotate the plot to look straight down at it.
+        axis tight;                             %Tighten up the axes.
+        hold on;
+        xlim([1,length(freqs)+1]);	%Set the limits of the x-axis to the number of frequencies.
+        ylim([1,length(ints)+1]);    	%Set the limits of the y-axis to the number of intensities.
+        temp = unique(floor(get(gca,'xtick')));        %Grab the auto-set x-ticks.
+        set(gca,'xtick',temp+0.5,'xticklabel',roundn(freqs(temp(1:end-1))/1000,-1));    %Shift the x-ticks 0.5 and label with with frequencies.
+        temp = unique(floor(get(gca,'ytick')));        %Grab the auto-set y-ticks.
+        set(gca,'ytick',temp+0.5,'yticklabel',round(ints(temp(1:end-1))));    %Shift the y-ticks 0.5 and label with with intensities.
+        box on;     %Put a box around the plot.
+        ylabel('Intensity (dB)');   %Label the y-axis.
+        xlabel('Frequency (kHz)');  %Label the x-axis.
+    else                             	%If this is an IsoTC...
+        tc = zeros(length(freqs),2);    %Create an array to hold tuning curves.
+        if isf32                        %If this is f32 data...
+            for j = 1:length(data)      %Step through each stimulus...
+                temp = zeros(length(data(j).sweep),sweeplength+1);          %Create a temporary matrix to hold individual sweeps' spikerates.
+                for k = 1:length(data(j).sweep)                             %Step through each sweep.
+                    C = 1000*histc(data(j).sweep(k).spikes,0:sweeplength);  %Find the PSTH for this sweep.
+                    if ~isempty(C)  %If there were any spikes at all...
+                        temp(k,:) = 1000*histc(data(j).sweep(k).spikes,0:sweeplength);   %Add each sweep's PSTH as it's own line.
+                    end
+                end
+                temp = nanmean(temp(:,spont_delay + (11:35)),2);             %Find the spikerate within the first 50 ms after tone onset.
+                tc(data(j).stim(freq_index) == freqs, 1) = nanmean(temp);   %Find the mean spikerate.
+                tc(data(j).stim(freq_index) == freqs, 2) = ...
+                    simple_ci(temp,alpha);                                  %Calculate confidence intervals for spikerate.
+            end
+        else                                %Otherwise, if this is LFP data...
+            for j = 1:length(data.stim)     %Step through each stimulus...
+                temp = 1000000*data.stim(j).lfp;                            %Grab the LFPs for this stimulus.
+                temp = nanmin(temp(:,double(spont_delay) + (1:50)),[],2);   %Find the minimum within the first 50 ms after tone onset.
+                tc(data.param(freq_index).value(j) == freqs, 1) = mean(temp);           %Find the mean LFP range in each excitatory segment.
+                tc(data.param(freq_index).value(j) == freqs, 2) = simple_ci(temp,alpha);    %Calculate confidence intervals for LFP ranges.
+            end
+        end
+        subplot(3,1,1:2);       %Plot the IsoTC as the top 2/3rds of the figure.
+        hold on;                %Hold for multiple plots.
+        if isf32                %If this is an *.f32 file...
+            line([0,length(freqs)+1],[1,1]*mean(spont),'color','k','linestyle','--');	%Plot a line to mark spontaneous rate.
+        end
+        errorbar(tc(:,1),tc(:,2),'color','r','linewidth',2);	%Plot the excitatory segment spikerate in red.
+        hold off;                                           %Release the plot holds.
+        axis tight;                                         %Tighten up the axes.
+        box off;                                            %Turn off the plot box.
+        temp = get(gca,'ylim');                             %Grab the y axis limits.
+        ylim([temp(1)-0.05*range(temp),temp(2)]);           %Add a little more space between the curve and the x axis.
+        temp = unique(floor(get(gca,'xtick')));         %Grab the auto-set x-ticks.
+        temp(temp == 0) = [];                           %Kick out the zero x-tick if it exists.
+        %set(gca,'xtick',temp+0.5,'xticklabel',roundn(freqs(temp)/1000,-1));    %Shift the x-ticks 0.5 and label with with frequencies.
+        if isf32                                %If this is f32 data...
+            ylabel('Spikes/s');                 %Label the y-axis as spikes.
+        else                                    %Otherwise, if this is LFP data...
+            ylabel('Evoked Response Range (\muV)');     %Label the y-axis as volts.
+        end
+        xlabel('Frequency (kHz)');  %Label the x-axis.
+    end
+    a = find(files(i).name == '\',1,'last');        %Find the last forward slash in the filename.
+    b = find(files(i).name == '.',1,'last');        %Find the last period in the filename.
+    if isempty(a)                                   %If there's no directory name in this filename...
+        title(files(i).name(1:b-1),'fontweight','bold','interpreter','none'); %Set the filename as this subplot's title.
+    else                                            %Otherwise...
+        title(files(i).name(a+1:b-1),'fontweight','bold','interpreter','none'); %Set the filename as this subplot's title.
+    end
+    drawnow;                            %Finish drawing the current plot before starting another.
+end
+
+varargout{1} = tc;
+varargout{2} = freqs                                                       %Return the frequencies if the user wants them.
+%varargout{3} = ints;                                                        %Return the intensities if the user wants them.
