@@ -1,58 +1,95 @@
 function varargout = Gap_Detection_Audiogram(varargin)
 
-datapath = 'Z:\Gap Detection Startle\Behavior Data\';                       %Define the general folder for saving behavioral data text files.
+datapath = '/Users/jeremyhicks/Desktop/Behavior Data/';                       %Define the general folder for saving behavioral data text files.
 datafile = [datapath 'noise_gap_detection_data.mat'];                       %All behavioral data is primarily saved in one large structure in a *.mat file.
 load(datafile);                                                             %Load the primary behavioral data structure.
 
-rats = {detectdata.ratname};                                                %Make a cell array holding all the rat names.
-if nargin == 0                                                              %If the user didn't specify a rat in the function call...
-    currentrat = listdlg('liststring',rats,...
-        'promptstring','Which rat do you want to check?:',...
-        'okstring','Select Rat',...
-        'cancelstring','Cancel',...
-        'Name','Rat Audiogram',...
-        'selectionmode','single',...
-        'listsize',[400,300],...
-        'uh',30);
-    if isempty(currentrat)                                                  %If the user canceled selection...
-        return                                                              %Skip execution of the rest of the function.
-    end
-else                                                                        %Otherwise, if the user did specify a rat in the function call.
-    currentrat = find(strcmpi(varargin{1},rats));                           %Find the index for the entered rat.
-    if isempty(currentrat)                                                  %If no matching rat was found...
-        error(['ERROR IN AUDIOGRAM: Couldn''t find the rat: '...
-            varargin{1} '!']);                                              %Return an error.
-    end
-end
-if nargin > 1                                                               %If the user specified a display option.
-    display = varargin{2};                                                  %Set the display option to what the user specified.
-else                                                                        %Otherwise, if no display option was specified.
-    display = 'on';                                                         %Display the audiogram by default.
-end
 
-warning off stats:glmfit:PerfectSeparation;                                 %Turn off the "perfect fit" warning for gmlfit.
+buttonChoice = questdlg('Check by rat(s) or by stage?',...                  %Query user for lookup mode.
+                        'Rat Audiogram','Rat','Stage','Rat');
 
-uniqueStages = strread(num2str(unique([detectdata(currentrat).session.stage])),'%s'); %Create a cell array holding unique stages for chosen rat.
-listIndex = listdlg('liststring',uniqueStages,...                                     %Create a list-selection dialog box to choose stage.
-                      'promptstring','Stage to check:',...
-                      'okstring','Select Stage',...
-                      'cancelstring','Cancel',...
-                      'Name','Rat Audiogram',...
-                      'selectionmode','single',...
-                      'listsize',[400,300],...
-                      'uh',30);
-                          
+if (buttonChoice == 'Rat')                                                  %If user wants to lookup by rat...
+    rats = {detectdata.ratname};                                            %Make a cell array holding all the rat names.
+    if nargin == 0                                                          %If the user didn't specify a rat in the function call...
+        chosenRats = listdlg('liststring',rats,...
+            'promptstring','Which rat(s) do you want to check?:',...
+            'okstring','Select Rat(s)',...
+            'cancelstring','Cancel',...
+            'Name','Rat Audiogram',...
+            'selectionmode','multiple',...
+            'listsize',[400,300],...
+            'uh',30);
+        if isempty(chosenRats)                                              %If the user canceled selection...
+            return                                                          %Skip execution of the rest of the function.
+        end
+    else                                                                    %Otherwise, if the user did specify a rat in the function call.
+        chosenRats = find(strcmpi(varargin{1},rats));                       %Find the index for the entered rat.
+        if isempty(chosenRats)                                              %If no matching rat was found...
+            error(['ERROR IN AUDIOGRAM: Couldn''t find the rat: '...
+                varargin{1} '!']);                                          %Return an error.
+        end
+    end
+    if nargin > 1                                                           %If the user specified a display option.
+        display = varargin{2};                                              %Set the display option to what the user specified.
+    else                                                                    %Otherwise, if no display option was specified.
+        display = 'on';                                                     %Display the audiogram by default.
+    end
+
+    warning off stats:glmfit:PerfectSeparation;                             %Turn off the "perfect fit" warning for gmlfit.
+
+
+    uniqueStages = [];
+    for i = 1:length(chosenRats)                                            %Create a vector of all unique stages for chosen rat(s).
+        uniqueStages = [uniqueStages unique([detectdata(chosenRats(i)).session.stage])];
+    end
+
+    uUniqueStages = unique(uniqueStages);                                   %Make a vector of just the unique stages in the above vector of unique stages.
+    stageCount = histc(uniqueStages, uUniqueStages);                        %Use a histogram count to tally the occurrence of each stage.
+
+    sharedStages = [];
+    for i = 1:length(stageCount)                                            %Make of vector of the unique stages shared across all rats.
+        if stageCount(i) == length(chosenRats)
+            sharedStages = [sharedStages uUniqueStages(i)];
+        end
+    end
+
+    stagesCellArray = strread(num2str(sharedStages),'%s');                  %Create a cell array holding unique stages shared across all rats.
+
+
+    if length(chosenRats) > 1
+        listIndex = listdlg('liststring',stagesCellArray,...                %Create a list-selection dialog box to choose stage.
+                            'promptstring','Which shared stage do you want to check?',...
+                            'okstring','Select Stage',...
+                            'cancelstring','Cancel',...
+                            'Name','Rat Audiogram',...
+                            'selectionmode','single',...
+                            'listsize',[400,300],...
+                            'uh',30);
+    else
+        listIndex = listdlg('liststring',stagesCellArray,...                %Create a list-selection dialog box to choose stage.
+                            'promptstring','Which stage do you want to check?',...
+                            'okstring','Select Stage',...
+                            'cancelstring','Cancel',...
+                            'Name','Rat Audiogram',...
+                            'selectionmode','single',...
+                            'listsize',[400,300],...
+                            'uh',30);
+
+    end
+else                                                                        %User wants to lookup by stage.
+    
+
 chosenStage = str2double(uniqueStages(listIndex));
                   
 if chosenStage == 13                                                            %If the chosen stage is stage 13...
     %% Load the historical performance of the rat on this stage. 
-    a = ([detectdata(currentrat).session(:).stage] ~= chosenStage);             %Find all stages that aren't the chosen stage.
-    detectdata(currentrat).session(a) = [];                                     %Kick out all non-chosen stages.
+    a = ([detectdata(chosenRats).session(:).stage] ~= chosenStage);             %Find all stages that aren't the chosen stage.
+    detectdata(chosenRats).session(a) = [];                                     %Kick out all non-chosen stages.
     if nargin > 2                                                               %If a third input argument was specified...
         num_days = varargin{3};                                                 %Set the number of previous days to look for.
-        temp = zeros(length(detectdata(currentrat).session),1);                 %Create a matrix to hold the session times for all sessions.
+        temp = zeros(length(detectdata(chosenRats).session),1);                 %Create a matrix to hold the session times for all sessions.
         for i = 1:length(temp)                                                  %Step through each session.
-            temp(i) = detectdata(currentrat).session(i).clock_reading(1);       %Grab the first trial's clock reading for each session.
+            temp(i) = detectdata(chosenRats).session(i).clock_reading(1);       %Grab the first trial's clock reading for each session.
         end
         d = unique(fix(temp));                                                  %Find the unique days that sessions were run.
         d = sort(d,'descend');                                                  %Sort the clock readings in descending order.
@@ -61,16 +98,16 @@ if chosenStage == 13                                                            
         else                                                                    %Otherwise, if there's not that many days...
             d = d(end);                                                         %Set the day cut-off to include all the days.
         end
-        detectdata(currentrat).session(temp < d) = [];                          %Kick out all sessions older than the specified cut-off.
+        detectdata(chosenRats).session(temp < d) = [];                          %Kick out all sessions older than the specified cut-off.
     end
-    if ~isempty(detectdata(currentrat).session)                                 %If there were any stage 4 sessions...
-        durs = vertcat(detectdata(currentrat).session.duration);                %Grab all of the tone durations...
+    if ~isempty(detectdata(chosenRats).session)                                 %If there were any stage 4 sessions...
+        durs = vertcat(detectdata(chosenRats).session.duration);                %Grab all of the tone durations...
         d = mode(durs);                                                         %Find the mode of the noiseburst durations.
-        freqs = floor(vertcat(detectdata(currentrat).session.freq));            %Grab all of the tested frequencies.
+        freqs = floor(vertcat(detectdata(chosenRats).session.freq));            %Grab all of the tested frequencies.
         freqs(durs ~= d) = [];                                                  %Kick out all trials not at the mode of the noiseburst durations.
-        ints = vertcat(detectdata(currentrat).session.intensity);               %Grab all of the tested intensities.
+        ints = vertcat(detectdata(chosenRats).session.intensity);               %Grab all of the tested intensities.
         ints(durs ~= d) = [];                                                   %Kick out all trials not at the mode of the noiseburst durations.
-        outcomes = vertcat(detectdata(currentrat).session.outcome);             %Grab all of the outcomes.
+        outcomes = vertcat(detectdata(chosenRats).session.outcome);             %Grab all of the outcomes.
         outcomes(durs ~= d) = [];                                               %Kick out all trials not at the mode of the noiseburst durations.
         test_freqs = unique(freqs)';                                            %Find all of the unique tested frequencies.
         test_ints = unique(ints)';                                              %Find all of the unique tested intensities.
@@ -153,7 +190,7 @@ if chosenStage == 13                                                            
             ylabel('Intensity (dB)');                                           %Label the y-axis.
             a = xlabel('Frequency (kHz)');                                      %Label the x-axis.
             set(a,'position',[mean(xlim),min(ylim)-0.15*range(ylim)]);          %Reposition the x-axis.
-            title(['Audiogram: ' rats{currentrat}]);                            %Show the rat's name in the title
+            title(['Audiogram: ' rats{chosenRats}]);                            %Show the rat's name in the title
         else
             step_size = test_ints(2) - test_ints(1);
             audiogram = test_ints(1) + step_size*audiogram-10;
@@ -171,13 +208,13 @@ if chosenStage == 13                                                            
     varargout{4} = prev_perf;    
 elseif chosenStage == 14                                                        %If the chosen stage is stage 14...
     %% Load the historical performance of the rat on this stage. 
-    a = ([detectdata(currentrat).session(:).stage] ~= chosenStage);             %Find all stages that aren't the chosen stage.
-    detectdata(currentrat).session(a) = [];                                     %Kick out all non-chosen stages.
+    a = ([detectdata(chosenRats).session(:).stage] ~= chosenStage);             %Find all stages that aren't the chosen stage.
+    detectdata(chosenRats).session(a) = [];                                     %Kick out all non-chosen stages.
     if nargin > 2                                                               %If a third input argument was specified...
         num_days = varargin{3};                                                 %Set the number of previous days to look for.
-        temp = zeros(length(detectdata(currentrat).session),1);                 %Create a matrix to hold the session times for all sessions.
+        temp = zeros(length(detectdata(chosenRats).session),1);                 %Create a matrix to hold the session times for all sessions.
         for i = 1:length(temp)                                                  %Step through each session.
-            temp(i) = detectdata(currentrat).session(i).clock_reading(1);       %Grab the first trial's clock reading for each session.
+            temp(i) = detectdata(chosenRats).session(i).clock_reading(1);       %Grab the first trial's clock reading for each session.
         end
         d = unique(fix(temp));                                                  %Find the unique days that sessions were run.
         d = sort(d,'descend');                                                  %Sort the clock readings in descending order.
@@ -186,16 +223,16 @@ elseif chosenStage == 14                                                        
         else                                                                    %Otherwise, if there's not that many days...
             d = d(end);                                                         %Set the day cut-off to include all the days.
         end
-        detectdata(currentrat).session(temp < d) = [];                          %Kick out all sessions older than the specified cut-off.
+        detectdata(chosenRats).session(temp < d) = [];                          %Kick out all sessions older than the specified cut-off.
     end
-    if ~isempty(detectdata(currentrat).session)                                 %If there were any stage 4 sessions...
-        durs = vertcat(detectdata(currentrat).session.duration);                %Grab all of the tone durations...
+    if ~isempty(detectdata(chosenRats).session)                                 %If there were any stage 4 sessions...
+        durs = vertcat(detectdata(chosenRats).session.duration);                %Grab all of the tone durations...
         d = mode(durs);                                                         %Find the mode of the noiseburst durations.
-        freqs = floor(vertcat(detectdata(currentrat).session.freq));            %Grab all of the tested frequencies.
+        freqs = floor(vertcat(detectdata(chosenRats).session.freq));            %Grab all of the tested frequencies.
         freqs(durs ~= d) = [];                                                  %Kick out all trials not at the mode of the noiseburst durations.
-        ints = vertcat(detectdata(currentrat).session.intensity);               %Grab all of the tested intensities.
+        ints = vertcat(detectdata(chosenRats).session.intensity);               %Grab all of the tested intensities.
         ints(durs ~= d) = [];                                                   %Kick out all trials not at the mode of the noiseburst durations.
-        outcomes = vertcat(detectdata(currentrat).session.outcome);             %Grab all of the outcomes.
+        outcomes = vertcat(detectdata(chosenRats).session.outcome);             %Grab all of the outcomes.
         outcomes(durs ~= d) = [];                                               %Kick out all trials not at the mode of the noiseburst durations.
         test_freqs = unique(freqs)';                                            %Find all of the unique tested frequencies.
         test_ints = unique(ints)';                                              %Find all of the unique tested intensities.
@@ -278,7 +315,7 @@ elseif chosenStage == 14                                                        
             ylabel('Intensity (dB)');                                           %Label the y-axis.
             a = xlabel('Frequency (kHz)');                                      %Label the x-axis.
             set(a,'position',[mean(xlim),min(ylim)-0.15*range(ylim)]);          %Reposition the x-axis.
-            title(['Audiogram: ' rats{currentrat}]);                            %Show the rat's name in the title
+            title(['Audiogram: ' rats{chosenRats}]);                            %Show the rat's name in the title
         else
             step_size = test_ints(2) - test_ints(1);
             audiogram = test_ints(1) + step_size*audiogram-10;
@@ -296,13 +333,13 @@ elseif chosenStage == 14                                                        
     varargout{4} = nanmean(prev_perf);        
 else                                                                            %If the chosen stage is not 13 or 14...
     %% Load the historical performance of the rat on this stage.
-    a = ([detectdata(currentrat).session(:).stage] ~= chosenStage);             %Find all stages that aren't the chosen stage.
-    detectdata(currentrat).session(a) = [];                                     %Kick out all non-chosen stages.
+    a = ([detectdata(chosenRats).session(:).stage] ~= chosenStage);             %Find all stages that aren't the chosen stage.
+    detectdata(chosenRats).session(a) = [];                                     %Kick out all non-chosen stages.
     if nargin > 2                                                               %If a third input argument was specified...
         num_days = varargin{3};                                                 %Set the number of previous days to look for.
-        temp = zeros(length(detectdata(currentrat).session),1);                 %Create a matrix to hold the session times for all sessions.
+        temp = zeros(length(detectdata(chosenRats).session),1);                 %Create a matrix to hold the session times for all sessions.
         for i = 1:length(temp)                                                  %Step through each session.
-            temp(i) = detectdata(currentrat).session(i).clock_reading(1);       %Grab the first trial's clock reading for each session.
+            temp(i) = detectdata(chosenRats).session(i).clock_reading(1);       %Grab the first trial's clock reading for each session.
         end
         d = unique(fix(temp));                                                  %Find the unique days that sessions were run.
         d = sort(d,'descend');                                                  %Sort the clock readings in descending order.
@@ -311,16 +348,16 @@ else                                                                            
         else                                                                    %Otherwise, if there's not that many days...
             d = d(end);                                                         %Set the day cut-off to include all the days.
         end
-        detectdata(currentrat).session(temp < d) = [];                          %Kick out all sessions older than the specified cut-off.
+        detectdata(chosenRats).session(temp < d) = [];                          %Kick out all sessions older than the specified cut-off.
     end
-    if ~isempty(detectdata(currentrat).session)                                 %If there were any stage 4 sessions...
-        durs = vertcat(detectdata(currentrat).session.duration);                %Grab all of the tone durations...
+    if ~isempty(detectdata(chosenRats).session)                                 %If there were any stage 4 sessions...
+        durs = vertcat(detectdata(chosenRats).session.duration);                %Grab all of the tone durations...
         d = mode(durs);                                                         %Find the mode of the noiseburst durations.
-        freqs = floor(vertcat(detectdata(currentrat).session.freq));            %Grab all of the tested frequencies.
+        freqs = floor(vertcat(detectdata(chosenRats).session.freq));            %Grab all of the tested frequencies.
         freqs(durs ~= d) = [];                                                  %Kick out all trials not at the mode of the noiseburst durations.
-        ints = vertcat(detectdata(currentrat).session.intensity);               %Grab all of the tested intensities.
+        ints = vertcat(detectdata(chosenRats).session.intensity);               %Grab all of the tested intensities.
         ints(durs ~= d) = [];                                                   %Kick out all trials not at the mode of the noiseburst durations.
-        outcomes = vertcat(detectdata(currentrat).session.outcome);             %Grab all of the outcomes.
+        outcomes = vertcat(detectdata(chosenRats).session.outcome);             %Grab all of the outcomes.
         outcomes(durs ~= d) = [];                                               %Kick out all trials not at the mode of the noiseburst durations.
         test_freqs = unique(freqs)';                                            %Find all of the unique tested frequencies.
         test_ints = unique(ints)';                                              %Find all of the unique tested intensities.
@@ -394,7 +431,7 @@ else                                                                            
             ylabel('Intensity (dB)');                                           %Label the y-axis.
             a = xlabel('Frequency (kHz)');                                      %Label the x-axis.
             set(a,'position',[mean(xlim),min(ylim)-0.15*range(ylim)]);          %Reposition the x-axis.
-            title(['Audiogram: ' rats{currentrat}]);                            %Show the rat's name in the title
+            title(['Audiogram: ' rats{chosenRats}]);                            %Show the rat's name in the title
         else
             step_size = test_ints(2) - test_ints(1);
             audiogram = test_ints(1) + step_size*audiogram-10;
