@@ -122,8 +122,10 @@ switch buttonChoice
        end
        if (str2double(chosenStage) == 13 || str2double(chosenStage) == 14)  %If the chosen stage is 13 or 14...
            allStageIDs = {};
-           for i = 1:length({detectdata.ratName})
-               allStageIDs = {allStageIDs{:} detectdata(i).session.stageid};
+           for i = 1:length({detectdata.ratname})
+               if(isfield(detectdata(i).session, 'stageid') == 1)
+                   allStageIDs = {allStageIDs{:} detectdata(i).session.stageid};
+               end
            end
            allStageIDs(cellfun('isempty',allStageIDs)) = [];
            uniqueAllStageIDs = unique(allStageIDs);
@@ -135,27 +137,49 @@ switch buttonChoice
                    'selectionmode','single',...
                    'listsize',[400,300],...
                    'uh',30);
-           chosenStageID = uniqueAllStageIDs{listIndex};                          %Store the chosen stage ID as a string.
+           chosenStageID = uniqueAllStageIDs{listIndex};                    %Store the chosen stage ID as a string.
        end
-       
-       
-       
-       
-       
-       
-       %Need to figure out how to find the rats that have completed the
-       %stage we're interested in.
-       % [match{i}] = find(strcmpi(vertcat({detectdata(ratindices(i)).session.stageid}),'0.5w')==1)
-       
-       
-       
-       
-       
-       
-       
-       
+       if (str2double(chosenStage) == 13 || str2double(chosenStage) == 14)  %If the chosen stage is 13 or 14...
+           ratsCellArray = {};
+           for i = 1:length({detectdata.ratname})                           %For each rat in the data structure...
+               if(isfield(detectdata(i).session, 'stageid') == 1)
+                    a = strcmpi(vertcat({detectdata(i).session.stageid}),chosenStageID);
+                    a(a==0) = [];
+                    if (isempty(a) == 0)                                         %If the rat possesses the chosen stage ID...
+                         ratsCellArray = {ratsCellArray{:} detectdata(i).ratname}; %Add that rat to the aforementioned cell array.
+                    end
+               end
+           end
+       else
+           ratsCellArray = {};
+           for i = 1:length({detectdata.ratname})                           %For each rat in the data structure...
+               if (isempty(detectdata(i).session) == 0)                     %If the rat has completed the chosen stage...
+                   ratsCellArray = {ratsCellArray{:} detectdata(i).ratname}; %Add that rat to the aforementioned cell array.
+               end
+           end
+       end
+       listIndex = listdlg('liststring',ratsCellArray,...                   %Display the list dialog box and receive a list index as input.
+                   'promptstring','Which rat(s) do you want to check?',...
+                   'okstring','Select Stage',...
+                   'cancelstring','Cancel',...
+                   'Name','Rat Audiogram',...
+                   'selectionmode','multiple',...
+                   'listsize',[400,300],...
+                   'uh',30);
+        rats = {detectdata.ratname};       
+        for i = 1:length(listIndex)
+            chosenRats(i) = find(strcmpi(ratsCellArray{listIndex},rats));
+        end
 end
-                  
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%At this point one should have:
+%chosenRats - array of indices of chosen rats
+%chosenStage - string for chosen stage
+%if stage 13 or 14, chosenStageID - string for chosen stage ID
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 if str2double(chosenStage) == 13                                                    %If the chosen stage is stage 13...
     for ratIndex = 1:length(chosenRats)
         %% Load the historical performance of the rat on this stage. 
@@ -389,7 +413,7 @@ elseif str2double(chosenStage) == 14                                            
                 ylabel('Intensity (dB)');                                           %Label the y-axis.
                 a = xlabel('Frequency (kHz)');                                      %Label the x-axis.
                 set(a,'position',[mean(xlim),min(ylim)-0.15*range(ylim)]);          %Reposition the x-axis.
-                title(['Audiogram: ' rats{chosenRats}]);                            %Show the rat's name in the title
+                title(['Audiogram: ' rats{chosenRats(ratIndex)}]);                            %Show the rat's name in the title
             else
                 step_size = test_ints(2) - test_ints(1);
                 audiogram = test_ints(1) + step_size*audiogram-10;
@@ -505,7 +529,7 @@ else                                                                            
                 ylabel('Intensity (dB)');                                           %Label the y-axis.
                 a = xlabel('Frequency (kHz)');                                      %Label the x-axis.
                 set(a,'position',[mean(xlim),min(ylim)-0.15*range(ylim)]);          %Reposition the x-axis.
-                title(['Audiogram: ' rats{chosenRats}]);                            %Show the rat's name in the title
+                title(['Audiogram: ' rats{chosenRats(ratIndex)}]);                            %Show the rat's name in the title
             else
                 step_size = test_ints(2) - test_ints(1);
                 audiogram = test_ints(1) + step_size*audiogram-10;
