@@ -33,7 +33,7 @@ switch buttonChoice
         if nargin > 1                                                       %If the user specified a display option.
             display = varargin{2};                                          %Set the display option to what the user specified.
         else                                                                %Otherwise, if no display option was specified.
-            display = 'on';                                                 %Display the audiogram by default.
+            display = 'off';                                                %Display the audiogram by default.
         end
 
         warning off stats:glmfit:PerfectSeparation;                         %Turn off the "perfect fit" warning for gmlfit.
@@ -179,7 +179,7 @@ switch buttonChoice
         if nargin > 1                                                       %If the user specified a display option.
             display = varargin{2};                                          %Set the display option to what the user specified.
         else                                                                %Otherwise, if no display option was specified.
-            display = 'on';                                                 %Display the audiogram by default.
+            display = 'off';                                                 %Display the audiogram by default.
         end
 
         warning off stats:glmfit:PerfectSeparation;                         %Turn off the "perfect fit" warning for gmlfit.
@@ -194,7 +194,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if str2double(chosenStage) == 13                                                    %If the chosen stage is stage 13...
-    audiogramMatrix = [];
+    prevPerfMatrix = [];
     for ratIndex = 1:length(chosenRats)
         %% Load the historical performance of the rat on this stage. 
         if nargin > 2                                                               %If a third input argument was specified...
@@ -304,8 +304,8 @@ if str2double(chosenStage) == 13                                                
                 set(a,'position',[mean(xlim),min(ylim)-0.15*range(ylim)]);          %Reposition the x-axis.
                 title(['Audiogram: ' rats{chosenRats(ratIndex)}]);                  %Show the rat's name in the title
             else
-                step_size = test_ints(2) - test_ints(1);
-                audiogram = test_ints(1) + step_size*audiogram-10;
+                %step_size = test_ints(2) - test_ints(1);
+                %audiogram = test_ints(1) + step_size*audiogram-10;
                 %hitvsints = test_ints(1) + step_size*hitvsints;
             end
         else                                                                        %Otherwise, if there's no stage 4 sessions...
@@ -314,15 +314,16 @@ if str2double(chosenStage) == 13                                                
             hitvsints = [];
             prev_perf = [];
         end
-        audiogramMatrix = [audiogramMatrix; audiogram];
+        prevPerfMatrix = [prevPerfMatrix; prev_perf];
     end
-    disp(audiogramMatrix);
+    disp('prevPerfMatrix:');
+    disp(prevPerfMatrix);
     varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
     varargout{2} = test_freqs;
     varargout{3} = hitvsints;
     varargout{4} = prev_perf;   
 elseif str2double(chosenStage) == 14                                                %If the chosen stage is stage 14...
-    audiogramMatrix = [];
+    prevPerfMatrix = [];
     for ratIndex = 1:length(chosenRats)
         %% Load the historical performance of the rat on this stage. 
         if nargin > 2                                                               %If a third input argument was specified...
@@ -442,9 +443,10 @@ elseif str2double(chosenStage) == 14                                            
             hitvsints = [];
             prev_perf = [];
         end
-        audiogramMatrix = [audiogramMatrix; audiogram];
+        prevPerfMatrix = [prevPerfMatrix; prev_perf];
     end
-    disp(audiogramMatrix);
+    disp('prevPerfMatrix:');
+    disp(prevPerfMatrix);
     varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
     varargout{2} = test_freqs;
     varargout{3} = hitvsints;
@@ -561,6 +563,7 @@ else                                                                            
         end
         audiogramMatrix = [audiogramMatrix; audiogram];
     end
+    disp('audiogramMatrix:');
     disp(audiogramMatrix);
     varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
     varargout{2} = test_freqs;
