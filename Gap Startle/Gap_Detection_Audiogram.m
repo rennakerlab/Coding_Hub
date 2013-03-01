@@ -318,10 +318,11 @@ if str2double(chosenStage) == 13                                                
     end
     disp('prevPerfMatrix:');
     disp(prevPerfMatrix);
-    varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
+    %varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
     varargout{2} = test_freqs;
-    varargout{3} = hitvsints;
-    varargout{4} = prev_perf;   
+    %varargout{3} = hitvsints;
+    %varargout{4} = prev_perf;   
+    varargout{1} = prevPerfMatrix;
 elseif str2double(chosenStage) == 14                                                %If the chosen stage is stage 14...
     prevPerfMatrix = [];
     for ratIndex = 1:length(chosenRats)
@@ -447,10 +448,11 @@ elseif str2double(chosenStage) == 14                                            
     end
     disp('prevPerfMatrix:');
     disp(prevPerfMatrix);
-    varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
+    varargout{1} = prevPerfMatrix;
+    %varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
     varargout{2} = test_freqs;
-    varargout{3} = hitvsints;
-    varargout{4} = nanmean(prev_perf); 
+    %varargout{3} = hitvsints;
+    %varargout{4} = nanmean(prev_perf); 
 else                                                                                %If the chosen stage is not 13 or 14...
     audiogramMatrix = [];
     for ratIndex = 1:length(chosenRats)
