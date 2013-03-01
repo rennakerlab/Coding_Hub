@@ -1,6 +1,6 @@
 function varargout = Gap_Detection_Audiogram(varargin)
 
-datapath = 'D:\Dropbox\Behavior Data\';                       %Define the general folder for saving behavioral data text files.
+datapath = 'Z:\Gap Detection Startle\Behavior Data\';                       %Define the general folder for saving behavioral data text files.
 datafile = [datapath 'noise_gap_detection_data.mat'];                       %All behavioral data is primarily saved in one large structure in a *.mat file.
 load(datafile);                                                             %Load the primary behavioral data structure.
 
