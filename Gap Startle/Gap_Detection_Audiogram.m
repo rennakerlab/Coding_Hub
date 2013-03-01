@@ -1,6 +1,6 @@
 function varargout = Gap_Detection_Audiogram(varargin)
 
-datapath = 'Z:\Gap Detection Startle\Behavior Data\';                       %Define the general folder for saving behavioral data text files.
+datapath = 'D:\Dropbox\Behavior Data\';                       %Define the general folder for saving behavioral data text files.
 datafile = [datapath 'noise_gap_detection_data.mat'];                       %All behavioral data is primarily saved in one large structure in a *.mat file.
 load(datafile);                                                             %Load the primary behavioral data structure.
 
@@ -92,13 +92,19 @@ switch buttonChoice
             end
             listIndex = listdlg('liststring',sharedStageIDs,...             %Display the list dialog box and receive a list index as input.
                     'promptstring','Which stage ID do you want to check?',...
-                    'okstring','Select Stage',...
+                    'okstring','Select Stage ID',...
                     'cancelstring','Cancel',...
                     'Name','Rat Audiogram',...
                     'selectionmode','single',...
                     'listsize',[400,300],...
                     'uh',30);
             chosenStageID = sharedStageIDs{listIndex};                      %Store the stage chosen stage ID as a string.
+            for i = 1:length({detectdata.ratname})                          %For each rat in the data structure...
+               if(isfield(detectdata(i).session, 'stageid') == 1)           %If the rat has records with a stageid field...
+                    a = strcmpi(vertcat({detectdata(i).session.stageid}),chosenStageID);
+                    detectdata(i).session(~a) = [];                         %Remove the records that don't match the chosen stage ID.
+               end
+           end
         end
     case 'Stage'                                                            %User wants to lookup by stage.
         allStages = [];                                                     %Create a vector to hold all stages available across all rats.
@@ -131,7 +137,7 @@ switch buttonChoice
            uniqueAllStageIDs = unique(allStageIDs);
            listIndex = listdlg('liststring',uniqueAllStageIDs,...           %Display the list dialog box and receive a list index as input.
                    'promptstring','Which stage ID do you want to check?',...
-                   'okstring','Select Stage',...
+                   'okstring','Select Stage ID',...
                    'cancelstring','Cancel',...
                    'Name','Rat Audiogram',...
                    'selectionmode','single',...
@@ -142,10 +148,10 @@ switch buttonChoice
        if (str2double(chosenStage) == 13 || str2double(chosenStage) == 14)  %If the chosen stage is 13 or 14...
            ratsCellArray = {};
            for i = 1:length({detectdata.ratname})                           %For each rat in the data structure...
-               if(isfield(detectdata(i).session, 'stageid') == 1)
+               if(isfield(detectdata(i).session, 'stageid') == 1)           %If the rat has records with a stageid field...
                     a = strcmpi(vertcat({detectdata(i).session.stageid}),chosenStageID);
-                    a(a==0) = [];
-                    if (isempty(a) == 0)                                         %If the rat possesses the chosen stage ID...
+                    detectdata(i).session(~a) = [];                         %Remove the records that don't match the chosen stage ID.
+                    if (isempty(a) == 0)                                    %If the rat possesses the chosen stage ID...
                          ratsCellArray = {ratsCellArray{:} detectdata(i).ratname}; %Add that rat to the aforementioned cell array.
                     end
                end
@@ -160,7 +166,7 @@ switch buttonChoice
        end
        listIndex = listdlg('liststring',ratsCellArray,...                   %Display the list dialog box and receive a list index as input.
                    'promptstring','Which rat(s) do you want to check?',...
-                   'okstring','Select Stage',...
+                   'okstring','Select Rat(s)',...
                    'cancelstring','Cancel',...
                    'Name','Rat Audiogram',...
                    'selectionmode','multiple',...
@@ -168,8 +174,15 @@ switch buttonChoice
                    'uh',30);
         rats = {detectdata.ratname};       
         for i = 1:length(listIndex)
-            chosenRats(i) = find(strcmpi(ratsCellArray{listIndex},rats));
+            chosenRats(i) = find(strcmpi((ratsCellArray{listIndex(i)}),rats));
         end
+        if nargin > 1                                                       %If the user specified a display option.
+            display = varargin{2};                                          %Set the display option to what the user specified.
+        else                                                                %Otherwise, if no display option was specified.
+            display = 'on';                                                 %Display the audiogram by default.
+        end
+
+        warning off stats:glmfit:PerfectSeparation;                         %Turn off the "perfect fit" warning for gmlfit.
 end
 
 
@@ -181,6 +194,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if str2double(chosenStage) == 13                                                    %If the chosen stage is stage 13...
+    audiogramMatrix = [];
     for ratIndex = 1:length(chosenRats)
         %% Load the historical performance of the rat on this stage. 
         if nargin > 2                                                               %If a third input argument was specified...
@@ -300,12 +314,15 @@ if str2double(chosenStage) == 13                                                
             hitvsints = [];
             prev_perf = [];
         end
-        varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
-        varargout{2} = test_freqs;
-        varargout{3} = hitvsints;
-        varargout{4} = prev_perf;   
+        audiogramMatrix = [audiogramMatrix; audiogram];
     end
+    disp(audiogramMatrix);
+    varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
+    varargout{2} = test_freqs;
+    varargout{3} = hitvsints;
+    varargout{4} = prev_perf;   
 elseif str2double(chosenStage) == 14                                                %If the chosen stage is stage 14...
+    audiogramMatrix = [];
     for ratIndex = 1:length(chosenRats)
         %% Load the historical performance of the rat on this stage. 
         if nargin > 2                                                               %If a third input argument was specified...
@@ -425,12 +442,15 @@ elseif str2double(chosenStage) == 14                                            
             hitvsints = [];
             prev_perf = [];
         end
-        varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
-        varargout{2} = test_freqs;
-        varargout{3} = hitvsints;
-        varargout{4} = nanmean(prev_perf);        
+        audiogramMatrix = [audiogramMatrix; audiogram];
     end
+    disp(audiogramMatrix);
+    varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
+    varargout{2} = test_freqs;
+    varargout{3} = hitvsints;
+    varargout{4} = nanmean(prev_perf); 
 else                                                                                %If the chosen stage is not 13 or 14...
+    audiogramMatrix = [];
     for ratIndex = 1:length(chosenRats)
         %% Load the historical performance of the rat on this stage.
         if nargin > 2                                                               %If a third input argument was specified...
@@ -539,8 +559,10 @@ else                                                                            
             test_freqs = [];
             hitvsints = [];
         end
-        varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
-        varargout{2} = test_freqs;
-        varargout{3} = hitvsints;    
+        audiogramMatrix = [audiogramMatrix; audiogram];
     end
+    disp(audiogramMatrix);
+    varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
+    varargout{2} = test_freqs;
+    varargout{3} = hitvsints; 
 end
