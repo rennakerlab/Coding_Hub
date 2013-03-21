@@ -377,8 +377,8 @@ elseif str2double(chosenStage) == 14                                            
                     if b > a                                                        %If the first one came after the last zero...
                         audiogram(i) = mean([a,b]);                                 %Set the 50% threshold to halfway between the last zero and first one.
                         disp(audiogram(i))
-                        b = glmfit(1:length(test_ints),prev_perf(:,i),'binomial');  %Just to give yfit something to work with when calculating other hit rates
-                        disp(b)
+                        %b = glmfit(1:length(test_ints),prev_perf(:,i),'binomial');  %Just to give yfit something to work with when calculating other hit rates
+                        disp(b);
                     end
                 end
                 %audiogram(i)
@@ -388,7 +388,7 @@ elseif str2double(chosenStage) == 14                                            
                 end
                 xfit = test_ints(1):0.01:test_ints(end);
                 yfit = glmval(b, xfit, 'logit');
-                disp(yfit)
+                %disp(yfit);
                     testhitrates = [0.2:0.1:0.8];
                     hitvsint = zeros(length(testhitrates), length(test_freqs));
 
@@ -444,7 +444,10 @@ elseif str2double(chosenStage) == 14                                            
             hitvsints = [];
             prev_perf = [];
         end
-        prevPerfMatrix = [prevPerfMatrix; prev_perf];
+        prev_perf
+        disp(chosenRats(ratIndex));
+        prevPerfMatrix = [prevPerfMatrix; col_mean(prev_perf)];
+        disp(prevPerfMatrix)
     end
     disp('prevPerfMatrix:');
     disp(prevPerfMatrix);
@@ -567,6 +570,7 @@ else                                                                            
     end
     disp('audiogramMatrix:');
     disp(audiogramMatrix);
+    disp('I be outputtin the audiogram matrix, yo!')
     varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
     varargout{2} = test_freqs;
     varargout{3} = hitvsints; 
