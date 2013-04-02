@@ -145,13 +145,24 @@ switch buttonChoice
                    'uh',30);
            chosenStageID = uniqueAllStageIDs{listIndex};                    %Store the chosen stage ID as a string.
        end
-       if (str2double(chosenStage) == 13 || str2double(chosenStage) == 14)  %If the chosen stage is 13 or 14...
+       if (str2double(chosenStage) == 13)  %If the chosen stage is 13...
            ratsCellArray = {};
            for i = 1:length({detectdata.ratname})                           %For each rat in the data structure...
                if(isfield(detectdata(i).session, 'stageid') == 1)           %If the rat has records with a stageid field...
                     a = strcmpi(vertcat({detectdata(i).session.stageid}),chosenStageID);
                     detectdata(i).session(~a) = [];                         %Remove the records that don't match the chosen stage ID.
-                    if (isempty(a) == 0)                                    %If the rat possesses the chosen stage ID...
+                    if (all(a == 0) == 0)                                    %If the rat possesses the chosen stage ID...
+                         ratsCellArray = {ratsCellArray{:} detectdata(i).ratname}; %Add that rat to the aforementioned cell array.
+                    end
+               end
+           end
+       elseif (str2double(chosenStage) == 14) %If the chosen stage is 14...
+           ratsCellArray = {};
+           for i = 1:length({detectdata.ratname})                           %For each rat in the data structure...
+               if(isfield(detectdata(i).session, 'stageid') == 1)           %If the rat has records with a stageid field...
+                    a = strcmpi(vertcat({detectdata(i).session.stageid}),chosenStageID);
+                    detectdata(i).session(~a) = [];                         %Remove the records that don't match the chosen stage ID.
+                    if (all(a == 0) == 0 && i ~= 114)                       %If the rat possesses the chosen stage ID and is not the dreaded NT68...
                          ratsCellArray = {ratsCellArray{:} detectdata(i).ratname}; %Add that rat to the aforementioned cell array.
                     end
                end
@@ -237,77 +248,6 @@ if str2double(chosenStage) == 13                                                
             end
         %     false_alarm = sum(outcomes=='F')/sum(outcomes =='F' | outcomes =='C'); %Calculate the false alarm rate.
             prev_perf = prev_perf(:,:,1)./prev_perf(:,:,2);                         %Convert the hit and trial counts to hit rate.
-        %     prev_perf = (prev_perf-false_alarm)/(1-false_alarm);                  %Correct the hit rates for false alarm rate.
-            audiogram = nan(1,length(test_freqs));                                  %Create a variable to hold the audiogram.            
-            for i = 1:size(prev_perf,2)                                             %Step through each tested frequencies.
-                disp(size(prev_perf,2))
-                if all(prev_perf(:,i) == 1 | prev_perf(:,i) == 0)                   %If all of the datapoints are ones or zeros...
-                    a = find(prev_perf(:,i) == 0,1,'last');                         %Find the last zero in the list of datapoints.
-                    b = find(prev_perf(:,i) == 1,1,'first');                        %Find the first one in the list of datapoints.
-                    if b > a                                                        %If the first one came after the last zero...
-                        audiogram(i) = mean([a,b]);                                 %Set the 50% threshold to halfway between the last zero and first one.
-                        disp(audiogram(i))
-                        b = glmfit(1:length(test_ints),prev_perf(:,i),'binomial');  %Just to give yfit something to work with when calculating other hit rates
-                        disp(b)
-                    end
-                end
-                %audiogram(i)
-                if isnan(audiogram(i))                                              %If the threshold for this frequency still isn't set...
-                    b = glmfit(1:length(test_ints),prev_perf(:,i),'binomial');      %Fit a binomial regression to the hit-rates.
-                    audiogram(i) = -b(1)/b(2);                                      %Find the 50% inflection point in the logistic regression.
-                end
-                xfit = test_ints(1):0.01:test_ints(end);
-                yfit = glmval(b, xfit, 'logit');
-                disp(yfit)
-                    testhitrates = [0.2:0.1:0.8];
-                    hitvsint = zeros(length(testhitrates), length(test_freqs));
-
-                    for l = 1:length(testhitrates)
-                        loind = find(yfit < testhitrates(l), 1, 'last');
-                        hiind = find(yfit >= testhitrates(l), 1, 'first');
-                        %disp([loind,hiind])
-                        %pause
-                        if loind == length(xfit)
-                            hitvsints(l,i) = test_ints(end);
-                        elseif hiind == 1
-                            hitvsints(l,i) = test_ints(1);
-                        else
-                            hitvsints(l,i) = xfit(loind);
-        %                     multiplier = (testhitrates(l) - yfit(loind))/(yfit(hiind) - yfit(loind));
-        %                     hitvsints(l,i) = multiplier*(test_ints(hiind) - test_ints(loind)) + test_ints(loind);
-                        end
-
-                    end 
-            end
-            if strcmpi(display,'on');                                               %If the display option is turned on...
-                figure('color','w');                                                %Create a new figure.
-                axes('units','normalized','position',[0.1 0.2 0.89 0.74]);          %Create new axes.
-                imagesc(prev_perf);                                                 %Show the corrected hit rates a scaled colormap.
-                temp = flipud(gray);                                                %Grab the grayscale steps.
-                temp = 0.5+temp/2;                                                  %Light up all the grayscale steps by half.
-                colormap(temp);                                                     %Use a flipped grayscale as the colorscale in the colormap.
-                set(gca,'ydir','normal');                                           %Flip the colormap around right-side up.
-                hold on;                                                            %Hold the axes for overlaying plots.
-                line([1.5,1.5],ylim,'color','k','linestyle',':');                   %Plot a line to mark off the BBN column.
-                plot(audiogram,'color','r','linewidth',2,'marker','*');             %Overlay the thresholds on the audiogram.
-                hold off;                                                           %Release the plot hold.
-                set(gca,'ytick',1:length(test_ints),'yticklabel',test_ints);        %Label the y-axis.
-                temp = cell(length(test_freqs),1);                                  %Create a cell array to hold the x-axis labels.
-                for i = 1:length(test_freqs)                                        %Step through each of the tested frequencies.
-                    temp{i} = num2str(test_freqs(i)/1000,'%1.1f');                  %Convert each frequency to kHz.
-                end
-                temp{test_freqs == 0} = 'BBN';                                      %Label the broadband noise column as BBN.
-                set(gca,'xtick',1:length(test_freqs),'xticklabel',temp);            %Label the x-axis.
-                xticklabel_rotate(90);                                              %Rotate the x-axis labels by 90 degrees.
-                ylabel('Intensity (dB)');                                           %Label the y-axis.
-                a = xlabel('Frequency (kHz)');                                      %Label the x-axis.
-                set(a,'position',[mean(xlim),min(ylim)-0.15*range(ylim)]);          %Reposition the x-axis.
-                title(['Audiogram: ' rats{chosenRats(ratIndex)}]);                  %Show the rat's name in the title
-            else
-                %step_size = test_ints(2) - test_ints(1);
-                %audiogram = test_ints(1) + step_size*audiogram-10;
-                %hitvsints = test_ints(1) + step_size*hitvsints;
-            end
         else                                                                        %Otherwise, if there's no stage 4 sessions...
             audiogram = [];                                                         %Set the audiogram to an empty matrix.
             test_freqs = [];
@@ -316,8 +256,6 @@ if str2double(chosenStage) == 13                                                
         end
         prevPerfMatrix = [prevPerfMatrix; prev_perf];
     end
-    disp('prevPerfMatrix:');
-    disp(prevPerfMatrix);
     %varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
     varargout{2} = test_freqs;
     %varargout{3} = hitvsints;
@@ -367,90 +305,14 @@ elseif str2double(chosenStage) == 14                                            
             end
         %     false_alarm = sum(outcomes=='F')/sum(outcomes =='F' | outcomes =='C'); %Calculate the false alarm rate.
             prev_perf = prev_perf(:,:,1)./prev_perf(:,:,2);                         %Convert the hit and trial counts to hit rate.
-        %     prev_perf = (prev_perf-false_alarm)/(1-false_alarm);                  %Correct the hit rates for false alarm rate.
-            audiogram = nan(1,length(test_freqs));                                  %Create a variable to hold the audiogram.            
-            for i = 1:size(prev_perf,2)                                             %Step through each tested frequencies.
-                disp(size(prev_perf,2))
-                if all(prev_perf(:,i) == 1 | prev_perf(:,i) == 0)                   %If all of the datapoints are ones or zeros...
-                    a = find(prev_perf(:,i) == 0,1,'last');                         %Find the last zero in the list of datapoints.
-                    b = find(prev_perf(:,i) == 1,1,'first');                        %Find the first one in the list of datapoints.
-                    if b > a                                                        %If the first one came after the last zero...
-                        audiogram(i) = mean([a,b]);                                 %Set the 50% threshold to halfway between the last zero and first one.
-                        disp(audiogram(i))
-                        %b = glmfit(1:length(test_ints),prev_perf(:,i),'binomial');  %Just to give yfit something to work with when calculating other hit rates
-                        disp(b);
-                    end
-                end
-                %audiogram(i)
-                if isnan(audiogram(i))                                              %If the threshold for this frequency still isn't set...
-                    b = glmfit(1:length(test_ints),prev_perf(:,i),'binomial');      %Fit a binomial regression to the hit-rates.
-                    audiogram(i) = -b(1)/b(2);                                      %Find the 50% inflection point in the logistic regression.
-                end
-                xfit = test_ints(1):0.01:test_ints(end);
-                yfit = glmval(b, xfit, 'logit');
-                %disp(yfit);
-                    testhitrates = [0.2:0.1:0.8];
-                    hitvsint = zeros(length(testhitrates), length(test_freqs));
-
-                    for l = 1:length(testhitrates)
-                        loind = find(yfit < testhitrates(l), 1, 'last');
-                        hiind = find(yfit >= testhitrates(l), 1, 'first');
-                        %disp([loind,hiind])
-                        %pause
-                        if loind == length(xfit)
-                            hitvsints(l,i) = test_ints(end);
-                        elseif hiind == 1
-                            hitvsints(l,i) = test_ints(1);
-                        else
-                            hitvsints(l,i) = xfit(loind);
-        %                     multiplier = (testhitrates(l) - yfit(loind))/(yfit(hiind) - yfit(loind));
-        %                     hitvsints(l,i) = multiplier*(test_ints(hiind) - test_ints(loind)) + test_ints(loind);
-                        end
-
-                    end 
-            end
-            if strcmpi(display,'on');                                               %If the display option is turned on...
-                figure('color','w');                                                %Create a new figure.
-                axes('units','normalized','position',[0.1 0.2 0.89 0.74]);          %Create new axes.
-                imagesc(prev_perf);                                                 %Show the corrected hit rates a scaled colormap.
-                temp = flipud(gray);                                                %Grab the grayscale steps.
-                temp = 0.5+temp/2;                                                  %Light up all the grayscale steps by half.
-                colormap(temp);                                                     %Use a flipped grayscale as the colorscale in the colormap.
-                set(gca,'ydir','normal');                                           %Flip the colormap around right-side up.
-                hold on;                                                            %Hold the axes for overlaying plots.
-                line([1.5,1.5],ylim,'color','k','linestyle',':');                   %Plot a line to mark off the BBN column.
-                plot(audiogram,'color','r','linewidth',2,'marker','*');             %Overlay the thresholds on the audiogram.
-                hold off;                                                           %Release the plot hold.
-                set(gca,'ytick',1:length(test_ints),'yticklabel',test_ints);        %Label the y-axis.
-                temp = cell(length(test_freqs),1);                                  %Create a cell array to hold the x-axis labels.
-                for i = 1:length(test_freqs)                                        %Step through each of the tested frequencies.
-                    temp{i} = num2str(test_freqs(i)/1000,'%1.1f');                  %Convert each frequency to kHz.
-                end
-                temp{test_freqs == 0} = 'BBN';                                      %Label the broadband noise column as BBN.
-                set(gca,'xtick',1:length(test_freqs),'xticklabel',temp);            %Label the x-axis.
-                xticklabel_rotate(90);                                              %Rotate the x-axis labels by 90 degrees.
-                ylabel('Intensity (dB)');                                           %Label the y-axis.
-                a = xlabel('Frequency (kHz)');                                      %Label the x-axis.
-                set(a,'position',[mean(xlim),min(ylim)-0.15*range(ylim)]);          %Reposition the x-axis.
-                title(['Audiogram: ' rats{chosenRats(ratIndex)}]);                            %Show the rat's name in the title
-            else
-                step_size = test_ints(2) - test_ints(1);
-                audiogram = test_ints(1) + step_size*audiogram-10;
-                %hitvsints = test_ints(1) + step_size*hitvsints;
-            end
         else                                                                        %Otherwise, if there's no stage 4 sessions...
             audiogram = [];                                                         %Set the audiogram to an empty matrix.
             test_freqs = [];
             hitvsints = [];
             prev_perf = [];
         end
-        prev_perf
-        disp(chosenRats(ratIndex));
-        prevPerfMatrix = [prevPerfMatrix; col_mean(prev_perf)];
-        disp(prevPerfMatrix)
+        prevPerfMatrix = [prevPerfMatrix; nanmean(prev_perf)];
     end
-    disp('prevPerfMatrix:');
-    disp(prevPerfMatrix);
     varargout{1} = prevPerfMatrix;
     %varargout{1} = audiogram;                                                   %Output the audiogram if the user asked for it.
     varargout{2} = test_freqs;
